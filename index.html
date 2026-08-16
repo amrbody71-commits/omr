@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>عُمر — OMR</title>
+<meta name="theme-color" content="#101226">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz@9..144&family=Albert+Sans:wght@300;400&family=Spline+Sans+Mono:wght@400;500&family=Amiri&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --void:   #101226;  /* midnight velvet */
+    --fog:    #2A2140;  /* dusk violet */
+    --thread: #FFB865;  /* lamplight amber */
+    --spark:  #FFE9C4;  /* firefly gold */
+    --accent: #E98FA0;  /* rosewater */
+    --ink:    #F4EFE6;  /* album ivory */
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ background:var(--void); }
+  body{
+    background:var(--void);
+    color:var(--ink);
+    font-family:'Albert Sans', system-ui, sans-serif;
+    font-weight:300;
+  }
+
+  /* ---- scene canvas: fixed, full viewport; the page scrolls behind it ---- */
+  #scene{
+    position:fixed; inset:0;
+    width:100vw; height:100vh;
+    display:block;
+    z-index:0;
+    touch-action:none;   /* pointer-capture drag owns touch on the canvas */
+    cursor:grab;
+  }
+  #scene.dragging{ cursor:grabbing; }
+
+  /* ---- scroll track: six transparent eras giving the page its length ---- */
+  main{ position:relative; z-index:1; pointer-events:none; }
+  .era-track{ height:180vh; }
+
+  /* ---- HUD skeleton ---- */
+  .hud{
+    position:fixed; z-index:3;
+    pointer-events:none;
+    font-family:'Spline Sans Mono', 'Amiri', monospace;
+    font-weight:400;
+    font-size:11px;
+    font-variant-caps:small-caps;
+    letter-spacing:.12em;
+    color:var(--ink);
+  }
+  #wordmark{ top:20px; left:24px; font-size:14px; letter-spacing:.18em; color:var(--spark); }
+  #era-index{
+    top:50%; right:20px; transform:translateY(-50%); text-align:right;
+    display:flex; flex-direction:column; align-items:flex-end; gap:16px;
+  }
+  #year-hud{ bottom:20px; left:24px; color:var(--thread); }
+  #cinema-btn{
+    bottom:20px; right:24px;
+    pointer-events:auto;
+    background:none; border:1px solid rgba(255,184,101,.35);
+    border-radius:999px; padding:6px 14px;
+    color:var(--thread); cursor:pointer;
+    transition:border-color .3s ease, color .3s ease;
+  }
+  #cinema-btn:hover{ border-color:var(--thread); color:var(--spark); }
+
+  /* ---- U2 instrument cluster ------------------------------------------ */
+
+  /* era index — right-edge vertical rail: hairline connecting the ticks,
+     one small-caps entry per era. Only these entries (and #cinema-btn)
+     accept the pointer. */
+  #era-index::before{
+    content:''; position:absolute; top:-12px; bottom:-12px; right:0;
+    width:1px; background:rgba(244,239,230,.16);
+  }
+  .ei-entry{
+    display:flex; align-items:center; gap:10px;
+    background:none; border:0; padding:3px 0; margin:0;
+    font:inherit; font-size:10px; letter-spacing:.12em;
+    color:rgba(244,239,230,.35);
+    cursor:pointer; pointer-events:auto;
+    transition:color .45s ease;
+  }
+  .ei-entry:hover{ color:rgba(244,239,230,.7); }
+  .ei-label{ text-transform:lowercase; } /* re-renders as true small caps */
+  .ei-tick{
+    display:block; width:12px; height:1px;
+    background:currentColor;
+    transition:width .45s ease, box-shadow .45s ease;
+  }
+  .ei-entry.current{
+    color:var(--thread);
+    text-shadow:0 0 10px rgba(255,184,101,.55), 0 0 26px rgba(255,184,101,.25);
+  }
+  .ei-entry.current .ei-tick{
+    width:22px;
+    box-shadow:0 0 8px rgba(255,184,101,.6);
+  }
+
+  /* year odometer — bottom-left: hairline rule, rolling digit strips,
+     micro progress label. Strips are translated by GSAP (yPercent). */
+  .odo-rule{
+    width:132px; height:1px;
+    background:rgba(244,239,230,.18);
+    margin-bottom:9px;
+  }
+  .odo{
+    display:flex; gap:.12em;
+    font-size:11px; line-height:1;
+    color:var(--spark);
+  }
+  .odo-col{ display:block; height:1em; overflow:hidden; }
+  .odo-strip{ display:block; will-change:transform; }
+  .odo-digit{ display:block; height:1em; line-height:1; }
+  .odo-micro{
+    margin-top:7px;
+    font-size:10px; letter-spacing:.12em;
+    color:rgba(244,239,230,.5);
+  }
+
+  /* era label — center-left, the ONLY non-mono HUD element. */
+  #era-label{
+    position:fixed; z-index:3;
+    left:6vw; top:50%; transform:translateY(-50%);
+    pointer-events:none;
+  }
+
+  /* While a photo is staged (U8 focus), the ambient HUD steps back so the
+     card and its reticle own the frame. */
+  #era-label, #year-hud, #era-index, #micro-readouts{
+    transition:opacity .45s ease;
+  }
+  body.focus-open #era-label,
+  body.focus-open #year-hud,
+  body.focus-open #era-index,
+  body.focus-open #micro-readouts,
+  body.outro-open #era-label,
+  body.outro-open #year-hud,
+  body.outro-open #era-index,
+  body.outro-open #micro-readouts,
+  body.outro-open #cinema-btn{
+    opacity:0;
+  }
+  body.outro-open #cinema-btn{ pointer-events:none; }
+  .el-title{
+    font-family:'Fraunces', serif; font-weight:400;
+    font-size:clamp(30px, 4.6vw, 54px);
+    line-height:1.06; letter-spacing:.045em;
+    color:var(--ink);
+    text-shadow:0 0 32px rgba(255,184,101,.16); /* lit: it IS the current era */
+  }
+  .el-sub{
+    margin-top:10px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:10px; letter-spacing:.14em;
+    color:rgba(255,184,101,.6);
+  }
+
+  /* micro readouts — top-right coordinate set-dressing. */
+  #micro-readouts{
+    position:fixed; z-index:3;
+    top:20px; right:24px;
+    text-align:right;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:10px; line-height:2; letter-spacing:.12em;
+    color:rgba(244,239,230,.5);
+    pointer-events:none;
+  }
+
+  @media (max-width:760px){
+    .ei-label{ display:none; }        /* rail + ticks only */
+    .ei-entry{ padding:6px 0; }       /* keep the tap target honest */
+    #micro-readouts{ display:none; }
+    .el-title{ font-size:clamp(26px, 8vw, 40px); }
+  }
+
+  /* ---- U8 focus mode: reticle brackets, scan sweep, readout, close ----
+     js/focus.js projects the staged card's corners each frame and drives
+     .fo-frame's transform/size; everything in here is presentation. The
+     whole overlay ignores the pointer except the ✕. */
+  #focus-overlay{
+    position:fixed; inset:0; z-index:4;
+    display:none;
+    pointer-events:none;
+  }
+  #focus-overlay.on{ display:block; }
+  .fo-frame{
+    position:absolute; left:0; top:0;
+    will-change:transform, width, height;
+    pointer-events:none;
+  }
+
+  /* four corner brackets: thin 1.5px amber Ls that fly in from off-screen
+     and lock with a ~60ms overshoot (84% → 100% of .46s) */
+  .fo-corner{
+    position:absolute; width:26px; height:26px;
+    opacity:0;
+    transform:translate(var(--fx), var(--fy));
+    filter:drop-shadow(0 0 6px rgba(255,184,101,.4));
+  }
+  .fo-corner.tl{ left:-7px;  top:-7px;    border-left:1.5px solid var(--thread);  border-top:1.5px solid var(--thread);    --fx:-46vw; --fy:-46vh; --ox:6px;  --oy:6px;  }
+  .fo-corner.tr{ right:-7px; top:-7px;    border-right:1.5px solid var(--thread); border-top:1.5px solid var(--thread);    --fx:46vw;  --fy:-46vh; --ox:-6px; --oy:6px;  }
+  .fo-corner.bl{ left:-7px;  bottom:-7px; border-left:1.5px solid var(--thread);  border-bottom:1.5px solid var(--thread); --fx:-46vw; --fy:46vh;  --ox:6px;  --oy:-6px; }
+  .fo-corner.br{ right:-7px; bottom:-7px; border-right:1.5px solid var(--thread); border-bottom:1.5px solid var(--thread); --fx:46vw;  --fy:46vh;  --ox:-6px; --oy:-6px; }
+  #focus-overlay.on .fo-corner{ animation:fo-corner-in .46s cubic-bezier(.18,.7,.3,1) both; }
+  #focus-overlay.on .fo-corner.tr{ animation-delay:.05s; }
+  #focus-overlay.on .fo-corner.bl{ animation-delay:.08s; }
+  #focus-overlay.on .fo-corner.br{ animation-delay:.03s; }
+  #focus-overlay.fo-out .fo-corner{ animation:fo-corner-out .26s ease-in both; }
+  @keyframes fo-corner-in{
+    0%   { opacity:0; transform:translate(var(--fx), var(--fy)); }
+    55%  { opacity:1; }
+    84%  { transform:translate(var(--ox), var(--oy)); }  /* the overshoot */
+    100% { opacity:1; transform:translate(0, 0); }        /* the lock */
+  }
+  @keyframes fo-corner-out{
+    to{ opacity:0; transform:translate(var(--fx), var(--fy)); }
+  }
+
+  /* one-shot scan-line sweep: a horizontal amber band crossing the card */
+  .fo-scan{ position:absolute; inset:0; overflow:hidden; }
+  .fo-scan::before{
+    content:''; position:absolute; left:-2%; right:-2%; height:16%;
+    top:-18%;
+    background:linear-gradient(to bottom,
+      rgba(255,184,101,0),
+      rgba(255,184,101,.10) 42%,
+      rgba(255,233,196,.26) 50%,
+      rgba(255,184,101,.10) 58%,
+      rgba(255,184,101,0));
+  }
+  #focus-overlay.on .fo-scan::before{ animation:fo-scan .5s ease-in-out .12s 1 both; }
+  @keyframes fo-scan{
+    from{ top:-18%; }
+    to  { top:104%; }
+  }
+
+  /* readout: YEAR huge in Fraunces (decoded in via the hud scramble),
+     era label + MEM NN∕14 + archive coords in mono. Year + era only —
+     captions are gone by design and never render here. */
+  .fo-readout{
+    position:absolute; left:-16px; bottom:4px;
+    pointer-events:none;
+    opacity:0; transform:translateY(12px);
+    transition:opacity .45s ease .26s, transform .45s cubic-bezier(.2,.8,.3,1) .26s;
+  }
+  #focus-overlay.on .fo-readout{ opacity:1; transform:none; }
+  #focus-overlay.fo-out .fo-readout{ opacity:0; transform:translateY(6px); transition:opacity .18s ease, transform .18s ease; }
+  .fo-year{
+    font-family:'Fraunces', serif; font-weight:400;
+    font-size:clamp(46px, 7vw, 96px); line-height:.95;
+    color:var(--ink);
+    text-shadow:0 0 34px rgba(255,184,101,.30), 0 0 90px rgba(255,184,101,.14);
+  }
+  .fo-era{
+    margin-top:7px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:11px; letter-spacing:.2em;
+    color:var(--thread);
+    text-shadow:0 0 12px rgba(255,184,101,.4);
+  }
+  .fo-meta{
+    margin-top:5px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:10px; line-height:1.8; letter-spacing:.14em;
+    white-space:pre-line;
+    color:rgba(244,239,230,.55);
+  }
+
+  /* close — the ONLY interactive element of the overlay */
+  .fo-close{
+    position:absolute; top:-16px; right:-16px;
+    pointer-events:auto;
+    width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(16,18,38,.6);
+    border:1px solid rgba(255,184,101,.4);
+    border-radius:50%;
+    color:var(--thread);
+    font-family:'Spline Sans Mono', monospace; font-size:13px; line-height:1;
+    cursor:pointer;
+    opacity:0;
+    transition:opacity .3s ease .34s, border-color .3s ease, color .3s ease;
+  }
+  #focus-overlay.on .fo-close{ opacity:1; }
+  #focus-overlay.fo-out .fo-close{ opacity:0; transition:opacity .15s ease; }
+  .fo-close:hover{ border-color:var(--thread); color:var(--spark); }
+  .fo-close:focus-visible{ outline:1px solid var(--spark); outline-offset:2px; }
+
+  @media (max-width:760px){
+    .fo-readout{ left:6px; bottom:8px; }
+    .fo-year{ font-size:clamp(38px, 11vw, 64px); }
+    .fo-close{ top:8px; right:8px; }
+  }
+
+  /* reduced motion: no scan sweep, brackets lock instantly */
+  @media (prefers-reduced-motion: reduce){
+    .fo-scan{ display:none; }
+    #focus-overlay.on .fo-corner,
+    #focus-overlay.fo-out .fo-corner{ animation:none; }
+    #focus-overlay.on .fo-corner{ opacity:1; transform:none; }
+    .fo-readout, .fo-close{ transition:none !important; }
+    #focus-overlay.on .fo-readout{ opacity:1; transform:none; }
+  }
+
+  /* ---- U9 intro: the title develops, the HUD waits --------------------
+     js/intro.js owns every timing decision (it adds .develop at t=3.8s and
+     app.js carries body.intro-playing for the whole sequence); everything
+     in here is presentation. Nothing but #intro-skip takes the pointer. */
+  #intro-title{
+    position:fixed; z-index:6;
+    left:0; right:0; top:50%;
+    transform:translateY(-50%);
+    text-align:center;
+    pointer-events:none;
+    opacity:0;                     /* the parent gates the whole title */
+    transition:opacity .28s ease;  /* …so a skip dissolves it, never cuts */
+  }
+  body.intro-playing #intro-title{ opacity:1; }
+  .it-ar{
+    font-family:'Amiri', serif;
+    font-size:clamp(66px, 13vw, 168px);
+    line-height:1.12;
+    color:var(--ink);
+    text-shadow:0 0 46px rgba(255,184,101,.35), 0 0 120px rgba(255,184,101,.18);
+  }
+  .it-en{
+    margin-top:14px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:clamp(10px, 1.35vw, 13px);
+    text-transform:lowercase;          /* re-renders as true small caps */
+    font-variant-caps:small-caps;
+    letter-spacing:.42em; text-indent:.42em;  /* balance the trailing gap */
+    color:rgba(255,233,196,.8);
+  }
+
+  /* develop like a photograph: out of a 10px blur into focus, hold, gone */
+  #intro-title.develop .it-ar,
+  #intro-title.develop .it-en{
+    animation:intro-develop 2.7s cubic-bezier(.22,.68,.24,1) both;
+  }
+  #intro-title.develop .it-en{ animation-duration:2.42s; animation-delay:.28s; }
+  #intro-title.develop-quick .it-ar,
+  #intro-title.develop-quick .it-en{
+    animation:intro-develop 1.7s cubic-bezier(.22,.68,.24,1) both;
+  }
+  @keyframes intro-develop{
+    0%   { opacity:0; filter:blur(10px); transform:scale(1.045); }
+    46%  { opacity:1; filter:blur(0);    transform:scale(1); }
+    74%  { opacity:1; filter:blur(0);    transform:scale(1); }
+    100% { opacity:0; filter:blur(3px);  transform:scale(.996); }
+  }
+
+  #intro-skip{
+    position:fixed; z-index:6;
+    left:50%; bottom:34px;
+    transform:translateX(-50%);
+    display:none;
+    background:none;
+    border:1px solid rgba(244,239,230,.16);
+    border-radius:999px; padding:7px 16px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:10px; letter-spacing:.22em; text-indent:.22em;
+    color:rgba(244,239,230,.45);
+    cursor:pointer;
+    transition:color .3s ease, border-color .3s ease;
+  }
+  body.intro-playing #intro-skip{
+    display:block;
+    animation:intro-skip-in .6s ease .8s both;   /* it waits its turn */
+  }
+  #intro-skip:hover{ color:var(--spark); border-color:rgba(255,184,101,.45); }
+  #intro-skip:focus-visible{ outline:1px solid var(--spark); outline-offset:3px; }
+  @keyframes intro-skip-in{
+    from{ opacity:0; transform:translate(-50%, 8px); }
+    to  { opacity:1; transform:translate(-50%, 0); }
+  }
+
+  /* the instrument cluster stays dark until the handoff — removing the
+     class IS the fade-in, so every hidden element owns a transition */
+  body.intro-playing #wordmark,
+  body.intro-playing #era-index,
+  body.intro-playing #year-hud,
+  body.intro-playing #cinema-btn,
+  body.intro-playing #era-label,
+  body.intro-playing #micro-readouts{
+    opacity:0;
+    pointer-events:none;
+  }
+  #wordmark{ transition:opacity .7s ease .15s; }
+  #cinema-btn{
+    transition:border-color .3s ease, color .3s ease, opacity .7s ease .15s;
+  }
+  /* no stray card ever stages itself under the intro */
+  body.intro-playing #scene{ pointer-events:none; }
+
+  @media (prefers-reduced-motion: reduce){
+    /* no blur, no scale — the title simply arrives and leaves */
+    #intro-title.develop .it-ar,
+    #intro-title.develop .it-en,
+    #intro-title.develop-quick .it-ar,
+    #intro-title.develop-quick .it-en{
+      animation-name:intro-develop-plain;
+    }
+    #intro-skip{ animation:none !important; opacity:1; }
+  }
+  @keyframes intro-develop-plain{
+    0%   { opacity:0; }
+    30%  { opacity:1; }
+    74%  { opacity:1; }
+    100% { opacity:0; }
+  }
+
+  @media (max-width:760px){
+    .it-en{ letter-spacing:.3em; text-indent:.3em; }
+    #intro-skip{ bottom:26px; }
+  }
+
+  /* ---- U10 the ending + cinema mode ------------------------------------
+     js/app.js appends the outro track (one more scroll section past the
+     last memory, marked data-outro); js/outro.js owns #outro's opacity and
+     js/cinema.js owns .cinema-mode and #cinema-fade. Presentation only —
+     no timing decisions live here. Years only: the line, the final year,
+     the wordmark. No era name, no caption. */
+  .outro-track{ height:150vh; }
+
+  #outro{
+    position:fixed; z-index:5;
+    left:0; right:0; top:50%;
+    transform:translateY(-50%);
+    text-align:center;
+    pointer-events:none;
+    opacity:0; visibility:hidden;   /* js/outro.js drives both */
+    will-change:opacity;
+  }
+  /* The words land on a bright, moving field of light filaments, and ivory
+     on near-white is unreadable. This scrim travels with the text and
+     darkens only what sits behind it — a soft ellipse, no visible edge,
+     so the nebula still reads everywhere around the line. */
+  #outro::before{
+    content:'';
+    position:absolute; left:50%; top:50%;
+    width:min(150vw, 1500px); height:min(78vh, 620px);
+    transform:translate(-50%, -50%);
+    background:radial-gradient(
+      ellipse at center,
+      rgba(6,7,16,.90) 0%,
+      rgba(6,7,16,.78) 28%,
+      rgba(6,7,16,.46) 52%,
+      rgba(6,7,16,.16) 74%,
+      rgba(6,7,16,0)   100%);
+    z-index:-1;
+    pointer-events:none;
+  }
+  .ou-line{
+    font-family:'Fraunces', serif; font-weight:400;
+    font-size:clamp(28px, 4.4vw, 54px);
+    line-height:1.1; letter-spacing:.045em;
+    color:#FFFDF8;
+    /* Two shadows doing different jobs: a tight near-black one that holds
+       the letterforms against whatever bright filament passes behind them,
+       and the wide amber glow that keeps the line part of the light. */
+    text-shadow:
+      0 2px 18px rgba(4,5,12,.92),
+      0 0 42px rgba(4,5,12,.75),
+      0 0 40px rgba(255,184,101,.22),
+      0 0 110px rgba(255,184,101,.10);
+  }
+  .ou-meta{
+    margin-top:20px;
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    font-family:'Spline Sans Mono', monospace;
+    font-size:11px; letter-spacing:.24em;
+    color:rgba(255,253,248,.82);
+    text-shadow:0 1px 12px rgba(4,5,12,.9);
+  }
+  .ou-rule{
+    display:block; width:46px; height:1px;
+    background:rgba(244,239,230,.26);
+  }
+  .ou-ar{
+    font-family:'Amiri', serif;
+    font-size:19px; letter-spacing:0;   /* Arabic never letter-spaces */
+    opacity:.4;
+  }
+
+  /* cinema mode: the whole instrument cluster and every control step out
+     of the recording — including the focus reticle's ✕. The brackets, the
+     scan sweep and the big year stay: those are the film, not the UI. */
+  body.cinema-mode #wordmark,
+  body.cinema-mode #era-index,
+  body.cinema-mode #year-hud,
+  body.cinema-mode #cinema-btn,
+  body.cinema-mode #era-label,
+  body.cinema-mode #micro-readouts,
+  body.cinema-mode #focus-overlay .fo-close{
+    opacity:0;
+    pointer-events:none;
+  }
+  body.cinema-mode,
+  body.cinema-mode #scene{ cursor:none; }
+
+  /* the last frame — js/cinema.js sets the duration (slow in, quick out)
+     and toggles .on. Above the outro line and the HUD, below the loader. */
+  #cinema-fade{
+    position:fixed; inset:0; z-index:8;
+    background:#000;
+    opacity:0; pointer-events:none;
+    transition:opacity 1.6s ease;
+  }
+  #cinema-fade.on{ opacity:1; }
+
+  @media (max-width:760px){
+    .ou-meta{ gap:10px; font-size:10px; }
+    .ou-rule{ width:30px; }
+  }
+
+  /* ---- preloader: a thin amber circle drawing itself ---- */
+  #loader{
+    position:fixed; inset:0; z-index:10;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--void);
+    transition:opacity .8s ease, visibility 0s linear .8s;
+  }
+  #loader.done{ opacity:0; visibility:hidden; }
+  #loader svg{ width:72px; height:72px; transform:rotate(-90deg); }
+  #loader circle{
+    fill:none;
+    stroke:var(--thread);
+    stroke-width:1.5;
+    stroke-linecap:round;
+    stroke-dasharray:176;             /* 2πr, r=28 */
+    animation:draw 1.8s ease-in-out infinite;
+  }
+  @keyframes draw{
+    0%   { stroke-dashoffset:176; }
+    55%  { stroke-dashoffset:0; }
+    100% { stroke-dashoffset:-176; }
+  }
+  .boot-err{
+    font-family:'Spline Sans Mono', monospace;
+    font-size:12px; letter-spacing:.08em;
+    color:var(--accent); text-align:center;
+    max-width:32em; line-height:1.7; padding:0 24px;
+  }
+
+  /* ---- noscript fallback ---- */
+  .fallback{
+    position:relative; z-index:5;
+    max-width:34em; margin:0 auto; padding:12vh 24px;
+    line-height:1.8;
+  }
+  .fallback h1{ font-family:'Fraunces', serif; font-weight:400; color:var(--spark); margin-bottom:1em; }
+  .fallback li{ list-style:none; border-bottom:1px solid rgba(244,239,230,.12); padding:.6em 0; }
+  .fallback span{ font-family:'Spline Sans Mono', monospace; color:var(--thread); margin-right:1.2em; font-size:.85em; }
+</style>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+  "postprocessing": "https://cdn.jsdelivr.net/npm/postprocessing@6.36.4/build/index.js",
+  "detect-gpu": "https://cdn.jsdelivr.net/npm/detect-gpu@5/+esm"
+}}
+</script>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div id="wordmark" class="hud" dir="auto">عُمر — OMR</div>
+<div id="era-index" class="hud"></div>
+<div id="year-hud" class="hud"></div>
+<button id="cinema-btn" class="hud" type="button">cinema</button>
+
+<div id="intro-title" aria-hidden="true">
+  <div class="it-ar" lang="ar" dir="rtl">عُمر</div>
+  <div class="it-en">OMR — A LIFE IN LIGHT</div>
+</div>
+<button id="intro-skip" type="button" aria-label="Skip the intro">SKIP ⏎</button>
+
+<main>
+  <section class="era-track" data-era="birth" style="height:180vh"></section>
+  <section class="era-track" data-era="childhood" style="height:180vh"></section>
+  <section class="era-track" data-era="school" style="height:180vh"></section>
+  <section class="era-track" data-era="growing" style="height:180vh"></section>
+  <section class="era-track" data-era="searching" style="height:180vh"></section>
+  <section class="era-track" data-era="now" style="height:180vh"></section>
+</main>
+
+<div id="loader" aria-hidden="true">
+  <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"></circle></svg>
+</div>
+
+<noscript>
+  <div class="fallback">
+    <h1>عُمر — OMR</h1>
+    <p>A lifetime, told as an ascending spiral of light. The living version needs JavaScript and WebGL; here is the path it walks:</p>
+    <ul>
+      <li><span>1998–2003</span>THE BEGINNING</li>
+      <li><span>2004–2009</span>CHILDHOOD</li>
+      <li><span>2010–2015</span>SCHOOL DAYS</li>
+      <li><span>2016–2019</span>GROWING UP</li>
+      <li><span>2020–2023</span>FINDING MY WAY</li>
+      <li><span>2024–2026</span>NOW</li>
+    </ul>
+  </div>
+</noscript>
+
+<script type="module" src="./js/boot.js"></script>
+</body>
+</html>

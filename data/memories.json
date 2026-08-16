@@ -1,0 +1,24 @@
+{
+  "_comment": "PLACEHOLDER ALBUM. The real one is a private family album and is not published. This file keeps the same schema and points src at the abstract textures that do ship, so a clone runs and the engine can be inspected end to end. Drop in your own photographs and rewrite these entries to use it for real — see the README.",
+
+  "eras": [
+    { "id": "birth",     "label": "THE BEGINNING",  "yearRange": [2004, 2007], "colorTemp": 0.95, "tint": "#FFD9A0" },
+    { "id": "childhood", "label": "CHILDHOOD",      "yearRange": [2008, 2010], "colorTemp": 0.85, "tint": "#FFB865" },
+    { "id": "school",    "label": "SCHOOL DAYS",    "yearRange": [2011, 2014], "colorTemp": 0.70, "tint": "#E98FA0" },
+    { "id": "growing",   "label": "GROWING UP",     "yearRange": [2015, 2019], "colorTemp": 0.55, "tint": "#B08CC4" },
+    { "id": "searching", "label": "FINDING MY WAY", "yearRange": [2020, 2024], "colorTemp": 0.35, "tint": "#7FB8B0" },
+    { "id": "now",       "label": "NOW",            "yearRange": [2025, 2026], "colorTemp": 0.60, "tint": "#F4EFE6" }
+  ],
+
+  "memories": [
+    { "id": "placeholder-01", "year": 2004, "era": "birth",     "title": "Placeholder one",   "caption": "", "src": "assets/textures/ink-plume-a.png",  "depth": null, "video": null, "w": 2048, "h": 2048, "hero": true  },
+    { "id": "placeholder-02", "year": 2006, "era": "birth",     "title": "Placeholder two",   "caption": "", "src": "assets/textures/nebula-warm.png",  "depth": null, "video": null, "w": 1024, "h": 1024, "hero": false },
+    { "id": "placeholder-03", "year": 2009, "era": "childhood", "title": "Placeholder three", "caption": "", "src": "assets/textures/ink-plume-b.png",  "depth": null, "video": null, "w": 2048, "h": 2048, "hero": false },
+    { "id": "placeholder-04", "year": 2012, "era": "school",    "title": "Placeholder four",  "caption": "", "src": "assets/textures/smoke-wisp-a.png", "depth": null, "video": null, "w": 1024, "h": 1024, "hero": true  },
+    { "id": "placeholder-05", "year": 2014, "era": "school",    "title": "Placeholder five",  "caption": "", "src": "assets/textures/light-rays.png",   "depth": null, "video": null, "w": 512,  "h": 512,  "hero": false },
+    { "id": "placeholder-06", "year": 2017, "era": "growing",   "title": "Placeholder six",   "caption": "", "src": "assets/textures/ink-plume-c.png",  "depth": null, "video": null, "w": 2048, "h": 2048, "hero": false },
+    { "id": "placeholder-07", "year": 2021, "era": "searching", "title": "Placeholder seven", "caption": "", "src": "assets/textures/smoke-wisp-b.png", "depth": null, "video": null, "w": 1024, "h": 1024, "hero": true  },
+    { "id": "placeholder-08", "year": 2023, "era": "searching", "title": "Placeholder eight", "caption": "", "src": "assets/textures/dust-motes.png",   "depth": null, "video": null, "w": 512,  "h": 512,  "hero": false },
+    { "id": "placeholder-09", "year": 2026, "era": "now",       "title": "Placeholder nine",  "caption": "", "src": "assets/textures/spark-point.png",  "depth": null, "video": null, "w": 256,  "h": 256,  "hero": true  }
+  ]
+}

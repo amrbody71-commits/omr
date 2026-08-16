@@ -1,0 +1,24 @@
+# ── PERSONAL MEDIA — NEVER COMMIT ───────────────────────────────────────
+# This project is a family album. No photograph, depth map or home video
+# belongs in version control. These patterns are deliberately UNANCHORED so
+# they match a directory of that name at ANY depth — the opposite of the
+# .vercelignore rule, and on purpose: here, over-matching is the safe failure.
+photos/
+depth/
+video/
+work/
+*.webp
+follow-me.jpg
+
+# The real manifest names real people and real years. The placeholder that
+# ships as data/memories.json is force-added; anything else stays out.
+memories.private.json
+
+# ── Credentials ─────────────────────────────────────────────────────────
+.env*
+.vercel/
+
+# ── Local scratch ───────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.DS_Store
